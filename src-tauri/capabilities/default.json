@@ -1,0 +1,15 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Core capabilities for zi-audio-review",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "opener:default",
+    "dialog:allow-open",
+    "fs:read-files",
+    "fs:read-dirs",
+    "fs:allow-exists",
+    "fs:scope-home-recursive"
+  ]
+}
