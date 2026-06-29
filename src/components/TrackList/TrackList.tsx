@@ -1,4 +1,4 @@
-import { useRef, useMemo } from "react";
+import { useRef, useMemo, useEffect } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -16,7 +16,8 @@ interface Props {
 }
 
 export function TrackList({ tracks }: Props) {
-  const { selectedTrack, setSelectedTrack, setPlayback, trackTagMap } = useAppStore();
+  const { selectedTrack, setSelectedTrack, setPlayback, trackTagMap,
+          playback, scrollToTrackId, setScrollToTrackId } = useAppStore();
   const containerRef = useRef<HTMLDivElement>(null);
 
   const columns = useMemo(() => createColumns(trackTagMap), [trackTagMap]);
@@ -46,6 +47,14 @@ export function TrackList({ tracks }: Props) {
       : 0;
 
   const totalWidth = table.getCenterTotalSize();
+
+  // Scroll to a track when requested from the Player.
+  useEffect(() => {
+    if (scrollToTrackId === null) return;
+    const idx = tracks.findIndex((t) => t.id === scrollToTrackId);
+    if (idx !== -1) virtualizer.scrollToIndex(idx, { align: "center" });
+    setScrollToTrackId(null);
+  }, [scrollToTrackId]);
 
   function handleRowClick(track: Track) {
     setSelectedTrack(track);
@@ -130,20 +139,33 @@ export function TrackList({ tracks }: Props) {
             const row = rows[vr.index];
             const track = row.original;
             const isSelected = selectedTrack?.id === track.id;
+            const isPlaying = playback.track?.id === track.id;
             return (
               <div
                 key={row.id}
                 style={{
                   display: "flex",
+                  position: "relative",
                   height: ROW_HEIGHT,
                   alignItems: "center",
-                  background: isSelected ? "#2a4a6e" : vr.index % 2 === 0 ? "#111" : "#141414",
+                  background: isSelected ? "#2a4a6e" : isPlaying ? "#0e2318" : vr.index % 2 === 0 ? "#111" : "#141414",
+                  boxShadow: isPlaying ? "inset 3px 0 0 #3a9a5c" : undefined,
                   cursor: "pointer",
                   borderBottom: "1px solid #1e1e1e",
                 }}
                 onClick={() => handleRowClick(track)}
                 onDoubleClick={() => handleRowDoubleClick(track)}
               >
+                {isPlaying && (
+                  <div style={{
+                    position: "absolute",
+                    left: 5,
+                    fontSize: 7,
+                    color: "#3a9a5c",
+                    pointerEvents: "none",
+                    lineHeight: 1,
+                  }}>▶</div>
+                )}
                 {row.getVisibleCells().map((cell) => (
                   <div
                     key={cell.id}
@@ -151,7 +173,8 @@ export function TrackList({ tracks }: Props) {
                       width: cell.column.getSize(),
                       padding: "0 8px",
                       fontSize: 13,
-                      color: isSelected ? "#fff" : "#ccc",
+                      fontWeight: isPlaying ? 600 : 400,
+                      color: isSelected ? "#fff" : isPlaying ? "#7ecf9a" : "#ccc",
                       flexShrink: 0,
                       overflow: "hidden",
                       textOverflow: "ellipsis",

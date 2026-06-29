@@ -34,6 +34,8 @@ interface AppState {
   setPlayback: (update: Partial<PlaybackState>) => void;
   setScanning: (scanning: boolean, status?: string) => void;
   setScanStatus: (status: string) => void;
+  scrollToTrackId: number | null;
+  setScrollToTrackId: (id: number | null) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -49,6 +51,7 @@ export const useAppStore = create<AppState>((set) => ({
   playback: { track: null, playing: false, positionSecs: 0, durationSecs: 0 },
   scanning: false,
   scanStatus: "",
+  scrollToTrackId: null,
 
   setLibraries: (libraries) => set({ libraries }),
   setSelectedLibraryIds: (selectedLibraryIds) => set({ selectedLibraryIds }),
@@ -71,4 +74,5 @@ export const useAppStore = create<AppState>((set) => ({
   setScanning: (scanning, status) =>
     set((s) => ({ scanning, scanStatus: status ?? s.scanStatus })),
   setScanStatus: (scanStatus) => set({ scanStatus }),
+  setScrollToTrackId: (scrollToTrackId) => set({ scrollToTrackId }),
 }));

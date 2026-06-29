@@ -8,7 +8,7 @@ function fmt(secs: number): string {
 }
 
 export function Player() {
-  const { playback, setPlayback } = useAppStore();
+  const { playback, setPlayback, setScrollToTrackId } = useAppStore();
   const { track, playing, positionSecs, durationSecs } = playback;
 
   const progress = durationSecs > 0 ? positionSecs / durationSecs : 0;
@@ -58,11 +58,19 @@ export function Player() {
         {playing ? "⏸" : "▶"}
       </button>
 
-      {/* Track info */}
+      {/* Track info — click name to scroll list to this track */}
       <div style={{ width: 200, flexShrink: 0 }}>
         {track ? (
           <>
-            <div style={{ fontSize: 12, color: "#ccc", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <div
+              onClick={() => setScrollToTrackId(track.id)}
+              title="Click to scroll to this track"
+              style={{
+                fontSize: 12, color: "#7ecf9a", overflow: "hidden",
+                textOverflow: "ellipsis", whiteSpace: "nowrap",
+                cursor: "pointer",
+              }}
+            >
               {track.title ?? track.filename}
             </div>
             <div style={{ fontSize: 11, color: "#555", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -88,12 +96,7 @@ export function Player() {
         value={progress}
         onChange={handleScrub}
         disabled={!track}
-        style={{
-          flex: 1,
-          height: 4,
-          accentColor: "#4a8fd4",
-          cursor: track ? "pointer" : "default",
-        }}
+        style={{ flex: 1, ["--progress" as string]: `${progress * 100}%` } as React.CSSProperties}
       />
 
       {/* Duration */}

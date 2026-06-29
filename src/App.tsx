@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useRef } from "react";
 import { useAppStore } from "./store/useAppStore";
 import { api } from "./lib/tauri";
 import { Sidebar } from "./components/Sidebar/Sidebar";
@@ -13,7 +13,9 @@ import "./App.css";
 export default function App() {
   const {
     selectedLibraryIds, tracks, searchQuery, activeTagIds, hideProjectFolders,
+    selectedTrack, playback,
     setLibraries, setSelectedLibraryIds, setTracks, setAllTags, setScanStatus, setTrackTagMap,
+    setSelectedTrack, setPlayback,
   } = useAppStore();
 
   const loadLibraries = useCallback(async () => {
@@ -46,6 +48,53 @@ export default function App() {
     api.listTags().then(setAllTags);
     api.listAllTrackTags().then(setTrackTagMap);
   }, []);
+
+  // Always-fresh snapshot for the keyboard handler (avoids stale closure).
+  const kbRef = useRef({ playback, tracks, selectedTrack });
+  useEffect(() => { kbRef.current = { playback, tracks, selectedTrack }; });
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
+
+      const { playback, tracks, selectedTrack } = kbRef.current;
+
+      if (e.code === "Space") {
+        e.preventDefault();
+        if (!playback.track) return;
+        setPlayback({ playing: !playback.playing });
+
+      } else if (e.code === "ArrowLeft") {
+        e.preventDefault();
+        if (!playback.track) return;
+        setPlayback({ positionSecs: Math.max(0, playback.positionSecs - 10) });
+
+      } else if (e.code === "ArrowRight") {
+        e.preventDefault();
+        if (!playback.track) return;
+        setPlayback({ positionSecs: Math.min(playback.durationSecs || Infinity, playback.positionSecs + 10) });
+
+      } else if (e.code === "ArrowUp" || e.code === "ArrowDown") {
+        e.preventDefault();
+        if (tracks.length === 0) return;
+        const delta = e.code === "ArrowUp" ? -1 : 1;
+        const current = playback.track ?? selectedTrack;
+        const idx = current ? tracks.findIndex((t) => t.id === current.id) : -1;
+        const nextIdx =
+          idx === -1
+            ? delta > 0 ? 0 : tracks.length - 1
+            : Math.max(0, Math.min(tracks.length - 1, idx + delta));
+        const next = tracks[nextIdx];
+        if (!next || next.id === current?.id) return;
+        setSelectedTrack(next);
+        setPlayback({ track: next, playing: true, positionSecs: 0 });
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [setPlayback, setSelectedTrack]);
 
   // Use join as dep key to avoid array-reference churn
   const libKey = selectedLibraryIds.join(",");
