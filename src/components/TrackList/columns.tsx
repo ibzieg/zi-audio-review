@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { createColumnHelper } from "@tanstack/react-table";
 import type { Track, Tag } from "../../types";
 import { tagColor } from "../../lib/tagColor";
@@ -11,7 +12,58 @@ function fmtDuration(secs: number | null): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-export function createColumns(trackTagMap: Record<number, Tag[]>) {
+function RatingCell({
+  rating,
+  trackId,
+  onRate,
+}: {
+  rating: number | null;
+  trackId: number;
+  onRate: (trackId: number, rating: number | null) => void;
+}) {
+  const [hovered, setHovered] = useState<number | null>(null);
+  const preview = hovered ?? rating ?? 0;
+
+  return (
+    <div
+      style={{ display: "flex", gap: 4, alignItems: "center" }}
+      onMouseLeave={() => setHovered(null)}
+    >
+      {Array.from({ length: 7 }, (_, i) => {
+        const dot = i + 1;
+        const filled = dot <= preview;
+        return (
+          <div
+            key={dot}
+            onMouseEnter={() => setHovered(dot)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onRate(trackId, rating === dot ? null : dot);
+            }}
+            style={{
+              width: 9,
+              height: 9,
+              borderRadius: "50%",
+              flexShrink: 0,
+              cursor: "pointer",
+              background: filled
+                ? hovered !== null
+                  ? dot <= hovered ? "#e8b84b" : "#5a5a2a"
+                  : "#c9a227"
+                : "#2e2e2e",
+              transition: "background 0.08s",
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+export function createColumns(
+  trackTagMap: Record<number, Tag[]>,
+  onRate: (trackId: number, rating: number | null) => void,
+) {
   return [
     col.accessor("pathSegment1", {
       header: "Project",
@@ -41,6 +93,17 @@ export function createColumns(trackTagMap: Record<number, Tag[]>) {
       header: "Bit",
       size: 50,
       cell: (i) => i.getValue() ?? "",
+    }),
+    col.accessor("rating", {
+      header: "Rating",
+      size: 104,
+      cell: (i) => (
+        <RatingCell
+          rating={i.getValue() ?? null}
+          trackId={i.row.original.id}
+          onRate={onRate}
+        />
+      ),
     }),
     col.display({
       id: "tags",

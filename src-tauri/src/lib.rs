@@ -26,6 +26,7 @@ pub fn run() {
             tracks::count_tracks,
             tracks::list_tracks,
             tracks::search_tracks,
+            tracks::rate_track,
             tags::list_tags,
             tags::list_all_track_tags,
             tags::create_tag,

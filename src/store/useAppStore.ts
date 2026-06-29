@@ -38,6 +38,7 @@ interface AppState {
   setScrollToTrackId: (id: number | null) => void;
   copiedTags: Tag[];
   setCopiedTags: (tags: Tag[]) => void;
+  setTrackRating: (trackId: number, rating: number | null) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -79,4 +80,6 @@ export const useAppStore = create<AppState>((set) => ({
   setScanStatus: (scanStatus) => set({ scanStatus }),
   setScrollToTrackId: (scrollToTrackId) => set({ scrollToTrackId }),
   setCopiedTags: (copiedTags) => set({ copiedTags }),
+  setTrackRating: (trackId, rating) =>
+    set((s) => ({ tracks: s.tracks.map((t) => t.id === trackId ? { ...t, rating } : t) })),
 }));

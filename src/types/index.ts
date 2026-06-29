@@ -23,6 +23,7 @@ export interface Track {
   fileSizeBytes: number | null;
   lastModified: string | null;
   indexedAt: string;
+  rating: number | null;
 }
 
 export interface Tag {

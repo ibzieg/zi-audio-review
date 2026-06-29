@@ -37,7 +37,7 @@ pub async fn list_tracks(
         let sql = format!(
             "SELECT id, library_id, file_path, relative_path, path_segment_1, path_segment_2,
                     filename, title, artist, album, duration_secs, sample_rate, channels,
-                    bit_depth, file_size_bytes, last_modified, indexed_at
+                    bit_depth, file_size_bytes, last_modified, indexed_at, rating
              FROM tracks WHERE{lib_clause}{pf_clause}
              ORDER BY path_segment_1, path_segment_2, filename
              LIMIT ?{limit_p} OFFSET ?{offset_p}"
@@ -87,7 +87,7 @@ pub async fn search_tracks(
                         t.path_segment_1, t.path_segment_2, t.filename,
                         t.title, t.artist, t.album, t.duration_secs,
                         t.sample_rate, t.channels, t.bit_depth,
-                        t.file_size_bytes, t.last_modified, t.indexed_at
+                        t.file_size_bytes, t.last_modified, t.indexed_at, t.rating
                  FROM tracks t
                  JOIN track_tags tt ON tt.track_id = t.id
                  WHERE t.library_id IN ({lib_list})
@@ -115,7 +115,7 @@ pub async fn search_tracks(
                         path_segment_1, path_segment_2, filename,
                         title, artist, album, duration_secs,
                         sample_rate, channels, bit_depth,
-                        file_size_bytes, last_modified, indexed_at
+                        file_size_bytes, last_modified, indexed_at, rating
                  FROM tracks
                  WHERE id IN (SELECT rowid FROM tracks_fts WHERE tracks_fts MATCH ?1)
                    AND library_id IN ({lib_list}){pf_clause}
@@ -192,5 +192,26 @@ fn track_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Track> {
         file_size_bytes: row.get(14)?,
         last_modified: row.get(15)?,
         indexed_at: row.get(16)?,
+        rating: row.get(17)?,
     })
+}
+
+#[tauri::command]
+pub async fn rate_track(
+    track_id: i64,
+    rating: Option<i64>,
+    pool: tauri::State<'_, DbPool>,
+) -> std::result::Result<(), String> {
+    let pool = pool.inner().clone();
+    tokio::task::spawn_blocking(move || -> Result<()> {
+        let conn = pool.get()?;
+        conn.execute(
+            "UPDATE tracks SET rating = ?1 WHERE id = ?2",
+            rusqlite::params![rating, track_id],
+        )?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())
 }

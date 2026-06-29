@@ -25,6 +25,8 @@ export const api = {
   removeTag: (trackId: number, tagId: number) =>
     invoke<void>("remove_tag", { trackId, tagId }),
   getTrackTags: (trackId: number) => invoke<Tag[]>("get_track_tags", { trackId }),
+  rateTrack: (trackId: number, rating: number | null) =>
+    invoke<void>("rate_track", { trackId, rating }),
 
   // Playlists
   listPlaylists: () => invoke<Playlist[]>("list_playlists"),

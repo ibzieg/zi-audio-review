@@ -21,11 +21,16 @@ type CtxMenu = { x: number; y: number; track: Track };
 export function TrackList({ tracks }: Props) {
   const { selectedTrack, setSelectedTrack, setPlayback, trackTagMap,
           playback, scrollToTrackId, setScrollToTrackId,
-          copiedTags, setCopiedTags, setTrackTagMap } = useAppStore();
+          copiedTags, setCopiedTags, setTrackTagMap, setTrackRating } = useAppStore();
   const containerRef = useRef<HTMLDivElement>(null);
   const [ctxMenu, setCtxMenu] = useState<CtxMenu | null>(null);
 
-  const columns = useMemo(() => createColumns(trackTagMap), [trackTagMap]);
+  async function handleRate(trackId: number, rating: number | null) {
+    setTrackRating(trackId, rating);
+    await api.rateTrack(trackId, rating);
+  }
+
+  const columns = useMemo(() => createColumns(trackTagMap, handleRate), [trackTagMap]);
 
   const table = useReactTable({
     data: tracks,

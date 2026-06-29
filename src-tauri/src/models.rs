@@ -29,6 +29,7 @@ pub struct Track {
     pub file_size_bytes: Option<i64>,
     pub last_modified: Option<String>,
     pub indexed_at: String,
+    pub rating: Option<i64>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
