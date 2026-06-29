@@ -46,6 +46,14 @@ pub struct Playlist {
     pub created_at: String,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrackTagEntry {
+    pub track_id: i64,
+    pub tag_id: i64,
+    pub tag_name: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanProgress {

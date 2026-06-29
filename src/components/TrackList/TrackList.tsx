@@ -1,11 +1,11 @@
-import { useRef } from "react";
+import { useRef, useMemo } from "react";
 import {
   useReactTable,
   getCoreRowModel,
   flexRender,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { columns } from "./columns";
+import { createColumns } from "./columns";
 import { useAppStore } from "../../store/useAppStore";
 import type { Track } from "../../types";
 
@@ -16,13 +16,16 @@ interface Props {
 }
 
 export function TrackList({ tracks }: Props) {
-  const { selectedTrack, setSelectedTrack, setPlayback } = useAppStore();
+  const { selectedTrack, setSelectedTrack, setPlayback, trackTagMap } = useAppStore();
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const columns = useMemo(() => createColumns(trackTagMap), [trackTagMap]);
 
   const table = useReactTable({
     data: tracks,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    columnResizeMode: "onChange",
   });
 
   const rows = table.getRowModel().rows;
@@ -42,6 +45,8 @@ export function TrackList({ tracks }: Props) {
       ? totalHeight - virtualRows[virtualRows.length - 1].end
       : 0;
 
+  const totalWidth = table.getCenterTotalSize();
+
   function handleRowClick(track: Track) {
     setSelectedTrack(track);
   }
@@ -52,38 +57,74 @@ export function TrackList({ tracks }: Props) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
-      {/* Header */}
-      <div style={{ borderBottom: "1px solid #333", background: "#1a1a1a" }}>
-        {table.getHeaderGroups().map((hg) => (
-          <div key={hg.id} style={{ display: "flex" }}>
-            {hg.headers.map((header) => (
-              <div
-                key={header.id}
-                style={{
-                  width: header.getSize(),
-                  padding: "6px 8px",
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: "#888",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                  flexShrink: 0,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {flexRender(header.column.columnDef.header, header.getContext())}
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
-
-      {/* Virtualized rows */}
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden", minHeight: 0 }}>
+      {/* Scroll container holds both sticky header and virtual rows */}
       <div ref={containerRef} style={{ flex: 1, overflow: "auto" }}>
-        <div style={{ height: totalHeight, position: "relative" }}>
+        {/* Sticky header */}
+        <div
+          style={{
+            position: "sticky",
+            top: 0,
+            zIndex: 1,
+            background: "#1a1a1a",
+            borderBottom: "1px solid #333",
+            minWidth: totalWidth,
+          }}
+        >
+          {table.getHeaderGroups().map((hg) => (
+            <div key={hg.id} style={{ display: "flex" }}>
+              {hg.headers.map((header) => (
+                <div
+                  key={header.id}
+                  style={{
+                    width: header.getSize(),
+                    padding: "6px 8px",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: "#888",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    flexShrink: 0,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    position: "relative",
+                    userSelect: "none",
+                  }}
+                >
+                  {flexRender(header.column.columnDef.header, header.getContext())}
+                  {header.column.getCanResize() && (
+                    <div
+                      onMouseDown={header.getResizeHandler()}
+                      onTouchStart={header.getResizeHandler()}
+                      style={{
+                        position: "absolute",
+                        right: 0,
+                        top: 0,
+                        height: "100%",
+                        width: 4,
+                        cursor: "col-resize",
+                        background: header.column.getIsResizing() ? "#4a8fd4" : "transparent",
+                        touchAction: "none",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!header.column.getIsResizing())
+                          e.currentTarget.style.background = "#2a2a2a";
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!header.column.getIsResizing())
+                          e.currentTarget.style.background = "transparent";
+                      }}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+
+        {/* Virtualized rows */}
+        <div style={{ height: totalHeight, position: "relative", minWidth: totalWidth }}>
           {paddingTop > 0 && <div style={{ height: paddingTop }} />}
           {virtualRows.map((vr) => {
             const row = rows[vr.index];
@@ -127,7 +168,7 @@ export function TrackList({ tracks }: Props) {
         </div>
       </div>
 
-      <div style={{ padding: "4px 8px", fontSize: 11, color: "#555", borderTop: "1px solid #222" }}>
+      <div style={{ padding: "4px 8px", fontSize: 11, color: "#555", borderTop: "1px solid #222", flexShrink: 0 }}>
         {tracks.length.toLocaleString()} tracks
       </div>
     </div>

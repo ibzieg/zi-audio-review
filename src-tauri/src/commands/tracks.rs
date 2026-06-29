@@ -17,23 +17,36 @@ pub async fn count_tracks(
 
 #[tauri::command]
 pub async fn list_tracks(
-    library_id: i64,
+    library_ids: Vec<i64>,
     limit: i64,
     offset: i64,
+    hide_project_folders: bool,
     pool: tauri::State<'_, DbPool>,
 ) -> std::result::Result<Vec<Track>, String> {
+    if library_ids.is_empty() {
+        return Ok(vec![]);
+    }
     let pool = pool.inner().clone();
     tokio::task::spawn_blocking(move || -> Result<Vec<Track>> {
         let conn = pool.get()?;
-        let mut stmt = conn.prepare(
+        let pf_clause = project_folder_clause(hide_project_folders);
+        let lib_clause = library_in_clause(&library_ids, "library_id");
+        let lib_count = library_ids.len();
+        let limit_p = lib_count + 1;
+        let offset_p = lib_count + 2;
+        let sql = format!(
             "SELECT id, library_id, file_path, relative_path, path_segment_1, path_segment_2,
                     filename, title, artist, album, duration_secs, sample_rate, channels,
                     bit_depth, file_size_bytes, last_modified, indexed_at
-             FROM tracks WHERE library_id = ?1
+             FROM tracks WHERE{lib_clause}{pf_clause}
              ORDER BY path_segment_1, path_segment_2, filename
-             LIMIT ?2 OFFSET ?3",
-        )?;
-        stmt.query_map([library_id, limit, offset], track_from_row)
+             LIMIT ?{limit_p} OFFSET ?{offset_p}"
+        );
+        let mut params = library_ids.clone();
+        params.push(limit);
+        params.push(offset);
+        let mut stmt = conn.prepare(&sql)?;
+        stmt.query_map(rusqlite::params_from_iter(params.iter()), track_from_row)
             .and_then(|rows| rows.collect::<rusqlite::Result<Vec<_>>>())
             .map_err(Into::into)
     })
@@ -46,13 +59,21 @@ pub async fn list_tracks(
 pub async fn search_tracks(
     query: String,
     tag_ids: Vec<i64>,
+    library_ids: Vec<i64>,
+    hide_project_folders: bool,
     pool: tauri::State<'_, DbPool>,
 ) -> std::result::Result<Vec<Track>, String> {
+    if library_ids.is_empty() {
+        return Ok(vec![]);
+    }
     let pool = pool.inner().clone();
     tokio::task::spawn_blocking(move || -> Result<Vec<Track>> {
         let conn = pool.get()?;
+        let pf_clause = project_folder_clause(hide_project_folders);
+        // Library IDs are i64 from our own DB — safe to inline as integer literals.
+        let lib_list: String = library_ids.iter().map(|id| id.to_string()).collect::<Vec<_>>().join(",");
 
-        // Tags only: use GROUP BY/HAVING to guarantee all tags match across all tracks
+        // Tags only: GROUP BY / HAVING for AND semantics across all selected libraries
         if query.is_empty() && !tag_ids.is_empty() {
             let required = tag_ids.len() as i64;
             let placeholders: String = (1..=tag_ids.len())
@@ -60,6 +81,7 @@ pub async fn search_tracks(
                 .collect::<Vec<_>>()
                 .join(",");
             let count_param = tag_ids.len() + 1;
+            let pf_t = pf_clause.replace("path_segment_2", "t.path_segment_2");
             let sql = format!(
                 "SELECT t.id, t.library_id, t.file_path, t.relative_path,
                         t.path_segment_1, t.path_segment_2, t.filename,
@@ -68,7 +90,8 @@ pub async fn search_tracks(
                         t.file_size_bytes, t.last_modified, t.indexed_at
                  FROM tracks t
                  JOIN track_tags tt ON tt.track_id = t.id
-                 WHERE tt.tag_id IN ({placeholders})
+                 WHERE t.library_id IN ({lib_list})
+                   AND tt.tag_id IN ({placeholders}){pf_t}
                  GROUP BY t.id
                  HAVING COUNT(DISTINCT tt.tag_id) = ?{count_param}
                  ORDER BY t.path_segment_1, t.path_segment_2, t.filename
@@ -87,19 +110,19 @@ pub async fn search_tracks(
         let mut tracks: Vec<Track> = if !query.is_empty() {
             let safe = query.replace('"', "").replace('*', "");
             let fts_query = format!("\"{}\"*", safe);
-            let mut stmt = conn.prepare(
+            let sql = format!(
                 "SELECT id, library_id, file_path, relative_path,
                         path_segment_1, path_segment_2, filename,
                         title, artist, album, duration_secs,
                         sample_rate, channels, bit_depth,
                         file_size_bytes, last_modified, indexed_at
                  FROM tracks
-                 WHERE id IN (
-                     SELECT rowid FROM tracks_fts WHERE tracks_fts MATCH ?1
-                 )
+                 WHERE id IN (SELECT rowid FROM tracks_fts WHERE tracks_fts MATCH ?1)
+                   AND library_id IN ({lib_list}){pf_clause}
                  ORDER BY path_segment_1, path_segment_2, filename
-                 LIMIT 500",
-            )?;
+                 LIMIT 500"
+            );
+            let mut stmt = conn.prepare(&sql)?;
             stmt.query_map([fts_query], track_from_row)
                 .and_then(|rows| rows.collect::<rusqlite::Result<Vec<_>>>())?
         } else {
@@ -132,6 +155,22 @@ pub async fn search_tracks(
     .await
     .map_err(|e| e.to_string())?
     .map_err(|e| e.to_string())
+}
+
+/// Builds `WHERE col IN (?1, ?2, ...)` using positional params starting at 1.
+/// Returns a clause beginning with a space, suitable for appending.
+fn library_in_clause(ids: &[i64], col: &str) -> String {
+    let placeholders = (1..=ids.len()).map(|i| format!("?{i}")).collect::<Vec<_>>().join(",");
+    format!(" {col} IN ({placeholders})")
+}
+
+/// Returns a SQL AND clause that excludes Ableton "SongName Project" subfolders.
+fn project_folder_clause(hide: bool) -> String {
+    if hide {
+        " AND (path_segment_2 IS NULL OR path_segment_2 NOT LIKE '% Project')".to_string()
+    } else {
+        String::new()
+    }
 }
 
 fn track_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Track> {

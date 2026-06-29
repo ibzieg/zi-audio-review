@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { Library, Track, Tag, Playlist } from "../types";
+import type { Library, Track, Tag, TrackTagEntry, Playlist } from "../types";
 
 export const api = {
   // Libraries
@@ -10,13 +10,14 @@ export const api = {
 
   // Tracks
   countTracks: () => invoke<number>("count_tracks"),
-  listTracks: (libraryId: number, limit: number, offset: number) =>
-    invoke<Track[]>("list_tracks", { libraryId, limit, offset }),
-  searchTracks: (query: string, tagIds: number[]) =>
-    invoke<Track[]>("search_tracks", { query, tagIds }),
+  listTracks: (libraryIds: number[], limit: number, offset: number, hideProjectFolders: boolean) =>
+    invoke<Track[]>("list_tracks", { libraryIds, limit, offset, hideProjectFolders }),
+  searchTracks: (query: string, tagIds: number[], libraryIds: number[], hideProjectFolders: boolean) =>
+    invoke<Track[]>("search_tracks", { query, tagIds, libraryIds, hideProjectFolders }),
 
   // Tags
   listTags: () => invoke<Tag[]>("list_tags"),
+  listAllTrackTags: () => invoke<TrackTagEntry[]>("list_all_track_tags"),
   createTag: (name: string) => invoke<Tag>("create_tag", { name }),
   assignTag: (trackId: number, tagId: number) =>
     invoke<void>("assign_tag", { trackId, tagId }),

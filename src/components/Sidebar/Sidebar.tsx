@@ -1,15 +1,21 @@
 import { useAppStore } from "../../store/useAppStore";
 import { api } from "../../lib/tauri";
-import type { Library } from "../../types";
 
 interface Props {
-  onLibrarySelect: (lib: Library) => void;
   onLibraryAdded: () => void;
 }
 
-export function Sidebar({ onLibrarySelect, onLibraryAdded }: Props) {
-  const { libraries, selectedLibraryId, scanning, scanStatus, setScanning, setScanStatus } =
+export function Sidebar({ onLibraryAdded }: Props) {
+  const { libraries, selectedLibraryIds, setSelectedLibraryIds, scanning, scanStatus, setScanning, setScanStatus } =
     useAppStore();
+
+  function toggleLibrary(id: number) {
+    if (selectedLibraryIds.includes(id)) {
+      setSelectedLibraryIds(selectedLibraryIds.filter((x) => x !== id));
+    } else {
+      setSelectedLibraryIds([...selectedLibraryIds, id]);
+    }
+  }
 
   async function handleAddLibrary() {
     const path = await api.pickFolder();
@@ -27,6 +33,16 @@ export function Sidebar({ onLibrarySelect, onLibraryAdded }: Props) {
     }
   }
 
+  const allSelected = libraries.length > 0 && selectedLibraryIds.length === libraries.length;
+
+  function toggleAll() {
+    if (allSelected) {
+      setSelectedLibraryIds([]);
+    } else {
+      setSelectedLibraryIds(libraries.map((l) => l.id));
+    }
+  }
+
   return (
     <div
       style={{
@@ -38,27 +54,53 @@ export function Sidebar({ onLibrarySelect, onLibraryAdded }: Props) {
         flexShrink: 0,
       }}
     >
-      <div style={{ padding: "12px 12px 6px", fontSize: 11, color: "#555", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-        Libraries
+      <div style={{
+        padding: "12px 12px 6px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+      }}>
+        <span style={{ fontSize: 11, color: "#555", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+          Libraries
+        </span>
+        {libraries.length > 1 && (
+          <button
+            onClick={toggleAll}
+            style={{
+              background: "none",
+              border: "none",
+              fontSize: 11,
+              color: "#444",
+              cursor: "pointer",
+              padding: 0,
+            }}
+          >
+            {allSelected ? "none" : "all"}
+          </button>
+        )}
       </div>
 
       <div style={{ flex: 1, overflow: "auto" }}>
-        {libraries.map((lib) => (
-          <div
-            key={lib.id}
-            onClick={() => onLibrarySelect(lib)}
-            style={{
-              padding: "8px 14px",
-              fontSize: 13,
-              cursor: "pointer",
-              color: selectedLibraryId === lib.id ? "#fff" : "#aaa",
-              background: selectedLibraryId === lib.id ? "#1e3a5f" : "transparent",
-              borderLeft: selectedLibraryId === lib.id ? "2px solid #4a8fd4" : "2px solid transparent",
-            }}
-          >
-            {lib.name}
-          </div>
-        ))}
+        {libraries.map((lib) => {
+          const selected = selectedLibraryIds.includes(lib.id);
+          return (
+            <div
+              key={lib.id}
+              onClick={() => toggleLibrary(lib.id)}
+              style={{
+                padding: "8px 14px",
+                fontSize: 13,
+                cursor: "pointer",
+                color: selected ? "#fff" : "#555",
+                background: selected ? "#1a2f4a" : "transparent",
+                borderLeft: selected ? "2px solid #4a8fd4" : "2px solid transparent",
+                userSelect: "none",
+              }}
+            >
+              {lib.name}
+            </div>
+          );
+        })}
       </div>
 
       <div style={{ padding: 10, borderTop: "1px solid #222" }}>

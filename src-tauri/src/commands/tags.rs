@@ -1,4 +1,4 @@
-use crate::{db::DbPool, error::Result, models::Tag};
+use crate::{db::DbPool, error::Result, models::{Tag, TrackTagEntry}};
 
 #[tauri::command]
 pub async fn list_tags(
@@ -72,6 +72,34 @@ pub async fn remove_tag(
             [track_id, tag_id],
         )?;
         Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn list_all_track_tags(
+    pool: tauri::State<'_, DbPool>,
+) -> std::result::Result<Vec<TrackTagEntry>, String> {
+    let pool = pool.inner().clone();
+    tokio::task::spawn_blocking(move || -> Result<Vec<TrackTagEntry>> {
+        let conn = pool.get()?;
+        let mut stmt = conn.prepare(
+            "SELECT tt.track_id, t.id, t.name
+             FROM track_tags tt
+             JOIN tags t ON t.id = tt.tag_id
+             ORDER BY tt.track_id, t.name",
+        )?;
+        stmt.query_map([], |row| {
+            Ok(TrackTagEntry {
+                track_id: row.get(0)?,
+                tag_id: row.get(1)?,
+                tag_name: row.get(2)?,
+            })
+        })
+        .and_then(|rows| rows.collect::<rusqlite::Result<Vec<_>>>())
+        .map_err(Into::into)
     })
     .await
     .map_err(|e| e.to_string())?

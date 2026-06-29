@@ -4,7 +4,7 @@ import { api } from "../../lib/tauri";
 import type { Tag } from "../../types";
 
 export function TrackTagEditor() {
-  const { selectedTrack, allTags, setAllTags } = useAppStore();
+  const { selectedTrack, allTags, setAllTags, setTrackTagMap } = useAppStore();
   const [trackTags, setTrackTags] = useState<Tag[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
@@ -40,6 +40,7 @@ export function TrackTagEditor() {
     );
     setInputValue("");
     setShowDropdown(false);
+    api.listAllTrackTags().then(setTrackTagMap);
   }
 
   async function createAndAssign() {
@@ -61,6 +62,7 @@ export function TrackTagEditor() {
     if (!selectedTrack) return;
     await api.removeTag(selectedTrack.id, tag.id);
     setTrackTags((prev) => prev.filter((t) => t.id !== tag.id));
+    api.listAllTrackTags().then(setTrackTagMap);
   }
 
   return (

@@ -71,49 +71,93 @@ pub fn scan_library(
             })
         });
 
-        // Read audio metadata — most DAW WAV exports have none, that's fine
         let (title, artist, album, duration_secs, sample_rate, channels, bit_depth) =
             read_metadata(path);
 
-        conn.execute(
-            "INSERT INTO tracks (
-                library_id, file_path, relative_path, path_segment_1, path_segment_2,
-                filename, title, artist, album, duration_secs, sample_rate, channels,
-                bit_depth, file_size_bytes, last_modified
-             ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15)
-             ON CONFLICT(file_path) DO UPDATE SET
-                relative_path=excluded.relative_path,
-                path_segment_1=excluded.path_segment_1,
-                path_segment_2=excluded.path_segment_2,
-                filename=excluded.filename,
-                title=excluded.title,
-                artist=excluded.artist,
-                album=excluded.album,
-                duration_secs=excluded.duration_secs,
-                sample_rate=excluded.sample_rate,
-                channels=excluded.channels,
-                bit_depth=excluded.bit_depth,
-                file_size_bytes=excluded.file_size_bytes,
-                last_modified=excluded.last_modified,
-                indexed_at=datetime('now')",
-            rusqlite::params![
-                library_id,
-                path.to_string_lossy().as_ref(),
-                relative.to_string_lossy().as_ref(),
-                path_segment_1,
-                path_segment_2,
-                filename,
-                title,
-                artist,
-                album,
-                duration_secs,
-                sample_rate,
-                channels,
-                bit_depth,
-                file_size_bytes,
-                last_modified,
-            ],
-        )?;
+        let checksum = compute_partial_checksum(path).ok();
+
+        // Check if a track with this checksum already exists (handles moved/renamed files).
+        let found_by_checksum: bool = checksum.as_deref().map_or(false, |cs| {
+            conn.query_row(
+                "SELECT 1 FROM tracks WHERE checksum = ?1",
+                rusqlite::params![cs],
+                |_| Ok(()),
+            ).is_ok()
+        });
+
+        if found_by_checksum {
+            // Content matches an existing record — update its location and metadata.
+            conn.execute(
+                "UPDATE tracks SET
+                    library_id=?1, file_path=?2, relative_path=?3,
+                    path_segment_1=?4, path_segment_2=?5, filename=?6,
+                    title=?7, artist=?8, album=?9, duration_secs=?10,
+                    sample_rate=?11, channels=?12, bit_depth=?13,
+                    file_size_bytes=?14, last_modified=?15, indexed_at=datetime('now')
+                 WHERE checksum=?16",
+                rusqlite::params![
+                    library_id,
+                    path.to_string_lossy().as_ref(),
+                    relative.to_string_lossy().as_ref(),
+                    path_segment_1,
+                    path_segment_2,
+                    filename,
+                    title,
+                    artist,
+                    album,
+                    duration_secs,
+                    sample_rate,
+                    channels,
+                    bit_depth,
+                    file_size_bytes,
+                    last_modified,
+                    checksum.as_deref(),
+                ],
+            )?;
+        } else {
+            // New file, or existing record without a checksum (backfill migration path).
+            conn.execute(
+                "INSERT INTO tracks (
+                    library_id, file_path, checksum, relative_path, path_segment_1, path_segment_2,
+                    filename, title, artist, album, duration_secs, sample_rate, channels,
+                    bit_depth, file_size_bytes, last_modified
+                 ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16)
+                 ON CONFLICT(file_path) DO UPDATE SET
+                    checksum=excluded.checksum,
+                    relative_path=excluded.relative_path,
+                    path_segment_1=excluded.path_segment_1,
+                    path_segment_2=excluded.path_segment_2,
+                    filename=excluded.filename,
+                    title=excluded.title,
+                    artist=excluded.artist,
+                    album=excluded.album,
+                    duration_secs=excluded.duration_secs,
+                    sample_rate=excluded.sample_rate,
+                    channels=excluded.channels,
+                    bit_depth=excluded.bit_depth,
+                    file_size_bytes=excluded.file_size_bytes,
+                    last_modified=excluded.last_modified,
+                    indexed_at=datetime('now')",
+                rusqlite::params![
+                    library_id,
+                    path.to_string_lossy().as_ref(),
+                    checksum.as_deref(),
+                    relative.to_string_lossy().as_ref(),
+                    path_segment_1,
+                    path_segment_2,
+                    filename,
+                    title,
+                    artist,
+                    album,
+                    duration_secs,
+                    sample_rate,
+                    channels,
+                    bit_depth,
+                    file_size_bytes,
+                    last_modified,
+                ],
+            )?;
+        }
 
         if i % 50 == 0 || i == total - 1 {
             let _ = app.emit(
@@ -128,6 +172,22 @@ pub fn scan_library(
     }
 
     Ok(total)
+}
+
+// Partial checksum: first 64 KB of file content hashed with blake3, mixed with the file size.
+// Fast enough for large WAV/FLAC files; still distinguishes renamed files from content changes.
+fn compute_partial_checksum(path: &Path) -> std::io::Result<String> {
+    use std::io::Read;
+    let mut file = std::fs::File::open(path)?;
+    let file_size = file.metadata()?.len();
+    let mut buf = vec![0u8; 65536];
+    let n = file.read(&mut buf)?;
+
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(&buf[..n]);
+    hasher.update(&file_size.to_le_bytes());
+
+    Ok(hasher.finalize().to_hex().to_string())
 }
 
 fn read_metadata(
@@ -165,7 +225,6 @@ fn read_metadata(
 }
 
 fn format_unix_ts(secs: u64) -> String {
-    // Simple ISO-ish timestamp without pulling in chrono
     let s = secs;
     let min = s / 60;
     let hour = min / 60;
@@ -173,7 +232,6 @@ fn format_unix_ts(secs: u64) -> String {
     let sec = s % 60;
     let min = min % 60;
     let hour = hour % 24;
-    // Approximate date (good enough for change detection, not display)
     let days_since_epoch = day_total;
     let year = 1970 + days_since_epoch / 365;
     let day_of_year = days_since_epoch % 365;

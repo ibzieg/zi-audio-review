@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS tracks (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     library_id      INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
     file_path       TEXT NOT NULL UNIQUE,
+    checksum        TEXT,
     relative_path   TEXT NOT NULL,
     path_segment_1  TEXT,
     path_segment_2  TEXT,

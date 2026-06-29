@@ -30,6 +30,12 @@ export interface Tag {
   name: string;
 }
 
+export interface TrackTagEntry {
+  trackId: number;
+  tagId: number;
+  tagName: string;
+}
+
 export interface Playlist {
   id: number;
   name: string;

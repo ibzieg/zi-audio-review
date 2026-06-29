@@ -21,5 +21,12 @@ pub fn init_pool(db_path: &Path) -> Result<DbPool> {
     conn.execute_batch(schema::PRAGMAS)?;
     conn.execute_batch(schema::CREATE_TABLES)?;
 
+    // Migration: add checksum column for existing databases (no-op on fresh installs).
+    // ALTER TABLE ADD COLUMN errors if the column already exists, so we ignore the result.
+    let _ = conn.execute("ALTER TABLE tracks ADD COLUMN checksum TEXT", []);
+    conn.execute_batch(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_tracks_checksum ON tracks(checksum) WHERE checksum IS NOT NULL;"
+    )?;
+
     Ok(pool)
 }

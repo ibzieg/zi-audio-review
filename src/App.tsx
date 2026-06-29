@@ -8,30 +8,32 @@ import { AudioElement } from "./components/Player/AudioElement";
 import { SearchBar } from "./components/SearchBar/SearchBar";
 import { TagFilterBar } from "./components/Tags/TagFilterBar";
 import { TrackTagEditor } from "./components/Tags/TrackTagEditor";
-import type { Library } from "./types";
 import "./App.css";
 
 export default function App() {
   const {
-    libraries, selectedLibraryId, tracks, searchQuery, activeTagIds,
-    setLibraries, setSelectedLibraryId, setTracks, setAllTags, setScanStatus,
+    selectedLibraryIds, tracks, searchQuery, activeTagIds, hideProjectFolders,
+    setLibraries, setSelectedLibraryIds, setTracks, setAllTags, setScanStatus, setTrackTagMap,
   } = useAppStore();
 
   const loadLibraries = useCallback(async () => {
     const libs = await api.listLibraries();
     setLibraries(libs);
-    if (libs.length > 0 && selectedLibraryId == null) {
-      setSelectedLibraryId(libs[0].id);
+    // Default: all libraries selected
+    if (libs.length > 0) {
+      setSelectedLibraryIds(libs.map((l) => l.id));
     }
-  }, [selectedLibraryId, setLibraries, setSelectedLibraryId]);
+  }, [setLibraries, setSelectedLibraryIds]);
 
-  const loadTracks = useCallback(async (libraryId: number, query: string, tagIds: number[]) => {
+  const loadTracks = useCallback(async (
+    libraryIds: number[], query: string, tagIds: number[], hidePF: boolean
+  ) => {
     try {
       if (query.trim() || tagIds.length > 0) {
-        const t = await api.searchTracks(query, tagIds);
+        const t = await api.searchTracks(query, tagIds, libraryIds, hidePF);
         setTracks(t);
       } else {
-        const t = await api.listTracks(libraryId, 5000, 0);
+        const t = await api.listTracks(libraryIds, 5000, 0, hidePF);
         setTracks(t);
       }
     } catch (err) {
@@ -42,28 +44,31 @@ export default function App() {
   useEffect(() => {
     loadLibraries();
     api.listTags().then(setAllTags);
+    api.listAllTrackTags().then(setTrackTagMap);
   }, []);
 
+  // Use join as dep key to avoid array-reference churn
+  const libKey = selectedLibraryIds.join(",");
   useEffect(() => {
-    if (selectedLibraryId != null) {
-      loadTracks(selectedLibraryId, searchQuery, activeTagIds);
+    if (selectedLibraryIds.length > 0) {
+      loadTracks(selectedLibraryIds, searchQuery, activeTagIds, hideProjectFolders);
+    } else {
+      setTracks([]);
     }
-  }, [selectedLibraryId, searchQuery, activeTagIds]);
-
-  function handleLibrarySelect(lib: Library) {
-    setSelectedLibraryId(lib.id);
-  }
+  }, [libKey, searchQuery, activeTagIds, hideProjectFolders]);
 
   async function handleLibraryAdded() {
     await loadLibraries();
   }
 
+  const hasLibraries = selectedLibraryIds.length > 0;
+
   return (
     <div style={{ display: "flex", height: "100vh", background: "#111", color: "#ccc", fontFamily: "system-ui, sans-serif" }}>
       <AudioElement />
-      <Sidebar onLibrarySelect={handleLibrarySelect} onLibraryAdded={handleLibraryAdded} />
+      <Sidebar onLibraryAdded={handleLibraryAdded} />
       <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-        {selectedLibraryId != null ? (
+        {hasLibraries ? (
           <>
             <SearchBar />
             <TagFilterBar />

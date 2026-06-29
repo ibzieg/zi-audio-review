@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useAppStore } from "../../store/useAppStore";
 
 export function SearchBar() {
-  const { searchQuery, setSearchQuery } = useAppStore();
+  const { searchQuery, setSearchQuery, hideProjectFolders, setHideProjectFolders } = useAppStore();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -68,6 +68,23 @@ export function SearchBar() {
           ✕
         </button>
       )}
+      <button
+        onClick={() => setHideProjectFolders(!hideProjectFolders)}
+        title={hideProjectFolders ? "Showing exports only — click to show all files" : "Showing all files — click to hide project folders"}
+        style={{
+          background: "none",
+          border: `1px solid ${hideProjectFolders ? "#333" : "#4a8fd4"}`,
+          borderRadius: 4,
+          color: hideProjectFolders ? "#444" : "#4a8fd4",
+          fontSize: 11,
+          cursor: "pointer",
+          padding: "2px 7px",
+          flexShrink: 0,
+          letterSpacing: "0.02em",
+        }}
+      >
+        {hideProjectFolders ? "exports" : "all files"}
+      </button>
     </div>
   );
 }
