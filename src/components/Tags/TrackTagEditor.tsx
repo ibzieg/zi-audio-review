@@ -144,6 +144,10 @@ export function TrackTagEditor() {
               inputRef.current?.blur();
             }
           }}
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
           placeholder="add tag…"
           style={{
             background: "transparent",

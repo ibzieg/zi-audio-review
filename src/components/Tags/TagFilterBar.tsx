@@ -81,6 +81,10 @@ export function TagFilterBar() {
             setCreating(false);
             setNewTagName("");
           }}
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
           placeholder="tag name…"
           style={{
             background: "#1e1e1e",

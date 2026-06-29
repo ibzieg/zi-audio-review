@@ -36,6 +36,8 @@ interface AppState {
   setScanStatus: (status: string) => void;
   scrollToTrackId: number | null;
   setScrollToTrackId: (id: number | null) => void;
+  copiedTags: Tag[];
+  setCopiedTags: (tags: Tag[]) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -52,6 +54,7 @@ export const useAppStore = create<AppState>((set) => ({
   scanning: false,
   scanStatus: "",
   scrollToTrackId: null,
+  copiedTags: [],
 
   setLibraries: (libraries) => set({ libraries }),
   setSelectedLibraryIds: (selectedLibraryIds) => set({ selectedLibraryIds }),
@@ -75,4 +78,5 @@ export const useAppStore = create<AppState>((set) => ({
     set((s) => ({ scanning, scanStatus: status ?? s.scanStatus })),
   setScanStatus: (scanStatus) => set({ scanStatus }),
   setScrollToTrackId: (scrollToTrackId) => set({ scrollToTrackId }),
+  setCopiedTags: (copiedTags) => set({ copiedTags }),
 }));

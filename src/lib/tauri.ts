@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import type { Library, Track, Tag, TrackTagEntry, Playlist } from "../types";
 
 export const api = {
@@ -31,4 +32,7 @@ export const api = {
 
   // Dialog helpers
   pickFolder: () => open({ directory: true, multiple: false }) as Promise<string | null>,
+
+  // Shell
+  revealInFinder: (path: string) => revealItemInDir(path),
 };
